@@ -1,0 +1,5 @@
+#outputformat.py
+
+output_formats=["DD-MON-YYYY", "MM/DD/YYYY", "YYYY/MM/DD", "YYYY-MM-DD","MM/DD/YY","MON DD YYYY HH12:MI:SSAM","MM/DD/RR","MONTH","DD-MON-YYYY","YYYY-MON-DD","DD-MON-YYYY","HH24:MI:SS","HH:MI:SS","HH24:MI","HH:MI"]
+
+input_formats=["YYYY-MM-DD HH24:MI:SS"," YYYY-MM-DD\"T\"HH24:MI:SS"]
