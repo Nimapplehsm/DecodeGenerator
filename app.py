@@ -1,15 +1,14 @@
 import streamlit as st
 import pandas as pd
-from db_elements import db_elements  # Your DB elements
-from result_page import render_result_page  # Import the updated result page
-from date_conversion import render_date_conversion_page  # Import the date conversion page
-
+from io import BytesIO
+from db_elements import db_elements
+from result_page import render_result_page
+from date_conversion import render_date_conversion_page
 
 # Set the layout to wide mode and set a custom favicon
 st.set_page_config(
     layout="wide",
-    page_icon="favicon.ico"  # Set your favicon file here, make sure it's in the same directory or provide a relative/absolute path
-    
+    page_icon="favicon.ico"
 )
 
 st.image("image.png", width=200)
@@ -20,9 +19,9 @@ if "conditions" not in st.session_state:
 if "logical_operators" not in st.session_state:
     st.session_state.logical_operators = []
 if "condition_count" not in st.session_state:
-    st.session_state.condition_count = 1  # Default to 1 condition
+    st.session_state.condition_count = 1
 if "page" not in st.session_state:
-    st.session_state.page = "input"  # Default to input page
+    st.session_state.page = "input"
 
 
 @st.cache_data
@@ -31,24 +30,170 @@ def load_excel(file):
     return pd.read_excel(file)
 
 
+def create_sample_template():
+    """Create a sample Excel template for download."""
+    sample_data = {
+        "Group Condition": [
+            'DB Element Check "Value"',
+            'DB Element Check "Value"',
+            'DB Element Check "Value"'
+        ],
+        "Subcondition": [
+            '(Subcondition DB Element Subcondition Check "Subcondition Value") AND',
+            '(Subcondition DB Element Subcondition Check "Subcondition Value") OR',
+            '(Subcondition DB Element Subcondition Check "Subcondition Value") AND'
+        ],
+        "Result": [
+            'result1',
+            'result2',
+            'result3'
+        ]
+    }
+    df = pd.DataFrame(sample_data)
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Template")
+    buffer.seek(0)
+    return buffer
+
+
+def decode_conditions(conditions):
+    """Decode the conditions into a structured string."""
+    decoded_conditions = []
+    for condition in conditions:
+        # Build main condition part: DB Element Check Value
+        main_condition = f'{condition["group_condition"]}'
+        
+        # Build subcondition part
+        subconditions = []
+        for sub in condition.get("subconditions", []):
+            sub_condition = f'{sub["db"]} {sub["check"]} "{sub["value"]}"' if sub["value"] else f'{sub["db"]} {sub["check"]}'
+            subconditions.append(f'{sub_condition} {sub["operator"]}')
+        
+        # Combine main condition and subconditions
+        subcondition_str = " ".join(subconditions).strip()
+        full_condition = f'{main_condition} {"AND " + subcondition_str if subcondition_str else ""}'
+
+        # Add result to the full condition
+        decoded_conditions.append(f'IF {full_condition} THEN {condition["result"]}')
+    
+    return decoded_conditions
+
+def parse_condition(condition_string):
+    """Parse the condition string (like `ProtocolCode equals "ASK-CHF2-CS201"`) into its components."""
+    db, check_value = condition_string.split(" ", 1)
+    check, value = check_value.split(" ", 1)
+    
+    # Remove extra quotes from values
+    if value.startswith('"') and value.endswith('"'):
+        value = value[1:-1]
+    
+    return db, check, value
+
+# Function to split the subcondition string into individual subconditions
+def split_subconditions(subcondition_string):
+    """Split a subcondition string into a list of individual subconditions."""
+    # We can split on " OR " or " AND ", and clean the string for subcondition parsing
+    subcondition_parts = []
+    for operator in [" OR ", " AND "]:
+        parts = subcondition_string.split(operator)
+        if len(parts) > 1:
+            subcondition_parts = parts
+            break
+    
+    # Clean each part by removing parentheses and trimming spaces
+    cleaned_parts = [part.strip().strip("()") for part in subcondition_parts]
+    return cleaned_parts
+
+# Function to parse subconditions (like `ContainerSpecimenClass starts with "SM01"`)
+def parse_subcondition(subcondition):
+    """Parse a subcondition string into its db, check, value, and operator."""
+    # Example format: `ContainerSpecimenClass starts with "SM01"`
+    sub_db, sub_check_value = subcondition.split(" ", 1)
+    
+    sub_check_parts = sub_check_value.split(" ", 1)
+
+    # sub_check will be the first part (the full check type)
+    sub_check = sub_check_parts[0] + " " + sub_check_parts[1].split(" ", 1)[0]
+
+    # sub_value will be the value part, i.e., the part after "starts with" (strip surrounding quotes)
+    sub_value = sub_check_value.split(" ", 1)[1]
+    sub_value = sub_value.split(" ", 1)[1]
+
+    # st.write(sub_check_value)
+    # st.write(sub_check)
+    # st.write(sub_value)
+    # Remove quotes from value
+    if sub_value.startswith('"') and sub_value.endswith('"'):
+        sub_value = sub_value[1:-1]
+    # st.write(sub_value)
+    # Determine the operator (either OR or AND)
+    operator = "AND" if "AND" in subcondition else "OR"
+    # st.write(sub_db)
+    
+    # st.write(operator)
+    return sub_db, sub_check, sub_value, operator
+
 def render_input_page():
     """Render the input page."""
     st.title("Decode Generator")
 
-    # Add a dropdown for input mode selection
     input_mode = st.selectbox("Select Input Mode:", ["Upload Excel File", "Enter Values Directly"], key="input_mode")
 
-    # If "Upload Excel File" is selected
     if input_mode == "Upload Excel File":
         st.subheader("Upload Excel File")
+
+        # Provide a download button for the sample template
+        st.download_button(
+            label="Download Sample Template",
+            data=create_sample_template(),
+            file_name="sample_template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
         uploaded_file = st.file_uploader("Upload an Excel file with conditions", type=["xlsx", "xls"])
-        
+
         if uploaded_file:
             data = load_excel(uploaded_file)
             st.write("Preview of uploaded data:")
             st.write(data)
 
-    # If "Enter Values Directly" is selected
+            # Convert uploaded data into conditions
+            st.session_state.Fileconditions = []
+            for _, row in data.iterrows():
+                # Extract the Group Condition (Main Condition)
+                group_condition = row["Group Condition"]
+                
+                # Parse the main condition to get db, check, and value
+                main_db, main_check, main_value = parse_condition(group_condition)
+
+                # Extract the subcondition (Subcondition column)
+                subcondition_string = row["Subcondition"]
+                subconditions = []
+
+                # Split subconditions by "OR" or "AND"
+                subcondition_parts = split_subconditions(subcondition_string)
+
+                # Parse each subcondition and add to the list
+                for i, subcondition in enumerate(subcondition_parts):
+                    sub_db, sub_check, sub_value, operator = parse_subcondition(subcondition)
+                    subconditions.append({
+                        "db": sub_db,
+                        "check": sub_check,
+                        "value": sub_value,
+                        "operator": operator
+                    })
+
+                # Store the condition (group + subconditions)
+                condition = {
+                    "group_condition": group_condition,
+                    "subconditions": subconditions,
+                    "result": row["Result"]
+                }
+
+                st.session_state.Fileconditions.append(condition)
+                # st.write(st.session_state)
+
     elif input_mode == "Enter Values Directly":
         st.subheader("Enter Values Directly")
         
@@ -166,8 +311,6 @@ def render_input_page():
         st.rerun()
 
 
-
-# Main app function to control navigation
 def main():
     if st.session_state.page == "input":
         render_input_page()
@@ -182,4 +325,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
