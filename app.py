@@ -5,13 +5,47 @@ from db_elements import db_elements
 from result_page import render_result_page
 from date_conversion import render_date_conversion_page
 
-# Set the layout to wide mode and set a custom favicon
+
+# Set the layout to wide mode and add custom styling
 st.set_page_config(
     layout="wide",
-    page_icon="favicon.ico"
+    page_title="Decode Generator",
+    page_icon="favicon.ico",
 )
 
+# Add custom styles
+st.markdown("""
+    <style>
+        .header { 
+            font-size: 32px; 
+            font-weight: bold; 
+            color: #4CAF50; 
+            margin-bottom: 20px; 
+        }
+        .sub-header { 
+            font-size: 24px; 
+            font-weight: bold; 
+            color: #2A3F54; 
+            margin-bottom: 10px; 
+        }
+        .footer { 
+            font-size: 14px; 
+            text-align: center; 
+            margin-top: 50px; 
+            color: #888888; 
+        }
+        .stButton button {
+            background-color: #4CAF50; 
+            color: white;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Display the header
 st.image("image.png", width=200)
+st.markdown('<div class="header">Decode Generator</div>', unsafe_allow_html=True)
+
+
 
 # Initialize session state variables if they don't exist yet
 if "conditions" not in st.session_state:
@@ -136,63 +170,75 @@ def parse_subcondition(subcondition):
 
 def render_input_page():
     """Render the input page."""
-    st.title("Decode Generator")
+    # st.title("Decode Generator")
 
     input_mode = st.selectbox("Select Input Mode:", ["Upload Excel File", "Enter Values Directly"], key="input_mode")
 
     if input_mode == "Upload Excel File":
-        st.subheader("Upload Excel File")
+        
+        col1, col2 = st.columns([12, 2])  # Adjust the ratio for column widths if needed
 
-        # Provide a download button for the sample template
-        st.download_button(
-            label="Download Sample Template",
-            data=create_sample_template(),
-            file_name="sample_template.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        with col2:
+            st.write("Sample Template")
+            # Provide a download button for the sample template
+            st.download_button(
+                label="Download",
+                data=create_sample_template(),
+                file_name="sample_template.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        with col1:
+            uploaded_file = st.file_uploader("Upload an Excel file with conditions", type=["xlsx", "xls"])
 
-        uploaded_file = st.file_uploader("Upload an Excel file with conditions", type=["xlsx", "xls"])
+            if uploaded_file:
+                data = load_excel(uploaded_file)
+                st.write("Preview of uploaded data:")
+                st.write(data)
 
-        if uploaded_file:
-            data = load_excel(uploaded_file)
-            st.write("Preview of uploaded data:")
-            st.write(data)
+                # Convert uploaded data into conditions
+                st.session_state.Fileconditions = []
+                for _, row in data.iterrows():
+                    # Extract the Group Condition (Main Condition)
+                    group_condition = row["Group Condition"]
+                    
+                    # Parse the main condition to get db, check, and value
+                    main_db, main_check, main_value = parse_condition(group_condition)
 
-            # Convert uploaded data into conditions
-            st.session_state.Fileconditions = []
-            for _, row in data.iterrows():
-                # Extract the Group Condition (Main Condition)
-                group_condition = row["Group Condition"]
-                
-                # Parse the main condition to get db, check, and value
-                main_db, main_check, main_value = parse_condition(group_condition)
+                    # Extract the subcondition (Subcondition column)
+                    subcondition_string = row["Subcondition"]
+                    subconditions = []
 
-                # Extract the subcondition (Subcondition column)
-                subcondition_string = row["Subcondition"]
-                subconditions = []
+                    # Split subconditions by "OR" or "AND"
+                    subcondition_parts = split_subconditions(subcondition_string)
 
-                # Split subconditions by "OR" or "AND"
-                subcondition_parts = split_subconditions(subcondition_string)
+                    # Parse each subcondition and add to the list
+                    for i, subcondition in enumerate(subcondition_parts):
+                        sub_db, sub_check, sub_value, operator = parse_subcondition(subcondition)
+                        subconditions.append({
+                            "db": sub_db,
+                            "check": sub_check,
+                            "value": sub_value,
+                            "operator": operator
+                        })
 
-                # Parse each subcondition and add to the list
-                for i, subcondition in enumerate(subcondition_parts):
-                    sub_db, sub_check, sub_value, operator = parse_subcondition(subcondition)
-                    subconditions.append({
-                        "db": sub_db,
-                        "check": sub_check,
-                        "value": sub_value,
-                        "operator": operator
-                    })
+                    # Store the condition (group + subconditions)
+                    condition = {
+                        "group_condition": group_condition,
+                        "subconditions": subconditions,
+                        "result": row["Result"]
+                    }
 
-                # Store the condition (group + subconditions)
-                condition = {
-                    "group_condition": group_condition,
-                    "subconditions": subconditions,
-                    "result": row["Result"]
-                }
-
-                st.session_state.Fileconditions.append(condition)
-                # st.write(st.session_state)
+                    st.session_state.Fileconditions.append(condition)
+                    # st.write(st.session_state)
+                col1, col2 = st.columns([19, 5])
+                with col1:
+                    if st.button("Generate Decode"):
+                        st.session_state.page = "result"
+                        st.rerun()
+                with col2:
+                    if st.button("Go to Date Conversion"):
+                        st.session_state.page = "date_conversion"
+                        st.rerun()
 
     elif input_mode == "Enter Values Directly":
         st.subheader("Enter Values Directly")
@@ -302,14 +348,16 @@ def render_input_page():
             )
 
     # Navigation buttons
-    if st.button("Generate Decode"):
-        st.session_state.page = "result"
-        st.rerun()
-
-    if st.button("Go to Date Conversion"):
-        st.session_state.page = "date_conversion"
-        st.rerun()
-
+    
+            col1, col2 = st.columns([19, 5])
+            with col1:
+                if st.button("Generate Decode"):
+                    st.session_state.page = "result"
+                    st.rerun()
+            with col2:
+                if st.button("Go to Date Conversion"):
+                    st.session_state.page = "date_conversion"
+                    st.rerun()
 
 def main():
     if st.session_state.page == "input":
