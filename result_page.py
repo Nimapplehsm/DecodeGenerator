@@ -1,5 +1,31 @@
 import re
 import streamlit as st
+st.markdown("""
+    <style>
+        .header { 
+            font-size: 32px; 
+            font-weight: bold; 
+            color: #4CAF50; 
+            margin-bottom: 20px; 
+        }
+        .sub-header { 
+            font-size: 24px; 
+            font-weight: bold; 
+            color: #2A3F54; 
+            margin-bottom: 10px; 
+        }
+        .footer { 
+            font-size: 14px; 
+            text-align: center; 
+            margin-top: 50px; 
+            color: #888888; 
+        }
+        .stButton button {
+            background-color: #4CAF50; 
+            color: white;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 def parse_group_condition(condition_string):
     """Parse the main condition (before the first subcondition)."""
