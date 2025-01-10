@@ -144,7 +144,7 @@ def parse_subcondition(subcondition):
     """Parse a subcondition string into its db, check, value, and operator."""
     # Example format: `ContainerSpecimenClass starts with "SM01"`
     sub_db, sub_check_value = subcondition.split(" ", 1)
-    
+   
     sub_check_parts = sub_check_value.split(" ", 1)
 
     # sub_check will be the first part (the full check type)
@@ -278,9 +278,9 @@ def render_input_page():
             with col2:
                 st.session_state.conditions[i]["check"] = st.selectbox(
                     f"Main Condition Check {i + 1}:",
-                    ["equals", "isnull", "is not null", "starts with", "contains", "is in list"],
+                    ["equals", "isnull", "is not null", "starts with", "contains", "is in the list"],
                     key=f"check_{i}",
-                    index=["equals", "isnull", "is not null", "starts with", "contains", "is in list"].index(
+                    index=["equals", "isnull", "is not null", "starts with", "contains", "is in the list"].index(
                         st.session_state.conditions[i]["check"]
                     )
                 )
@@ -321,10 +321,12 @@ def render_input_page():
                     with col2:
                         sub["check"] = st.selectbox(
                             f"Subcondition {j + 1} Check:",
-                            ["equals", "isnull", "is not null", "starts with", "contains", "is in list"],
+                            ["equals", "isnull", "is not null", "starts with", "contains", "is in the list"],
                             key=f"sub_check_{i}_{j}",
-                            index=["equals", "isnull", "is not null", "starts with", "contains", "is in list"].index(sub["check"])
+                            index=["equals", "isnull", "is not null", "starts with", "contains", "is in the list"].index(sub["check"])
                         )
+                        
+                        
                     with col3:
                         if sub["check"] not in ["isnull", "is not null"]:
                             sub["value"] = st.text_input(
